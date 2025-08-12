@@ -253,50 +253,67 @@ def main():
         if st.button("🎨 Generate Images", type="primary"):
             if not st.session_state.api_key:
                 st.error("Please enter your API key in the sidebar.")
-                return
-                
+        else:
             with st.spinner("🎨 Generating your masterpiece..."):
                 try:
-                    # Convert aspect ratio to proper format
+                    final_prompt = st.session_state.enhanced_prompt or prompt
+
                     result = generate_hd_image(
-                        prompt=st.session_state.enhanced_prompt or prompt,
+                        prompt=final_prompt,
                         api_key=st.session_state.api_key,
                         num_results=num_images,
-                        aspect_ratio=aspect_ratio,  # Already in correct format (e.g. "1:1")
-                        sync=True,  # Wait for results
+                        aspect_ratio=aspect_ratio,
+                        sync=True,
                         enhance_image=enhance_img,
                         medium="art" if style != "Realistic" else "photography",
-                        prompt_enhancement=False,  # We're already using our own prompt enhancement
-                        content_moderation=True  # Enable content moderation by default
+                        prompt_enhancement=False,
+                        content_moderation=True
                     )
                     
                     if result:
-                        # Debug logging
                         st.write("Debug - Raw API Response:", result)
                         
+                        image_url = None
                         if isinstance(result, dict):
                             if "result_url" in result:
-                                st.session_state.edited_image = result["result_url"]
-                                st.success("✨ Image generated successfully!")
-                            elif "result_urls" in result:
-                                st.session_state.edited_image = result["result_urls"][0]
-                                st.success("✨ Image generated successfully!")
+                                image_url = result["result_url"]
+                            elif "result_urls" in result and result["result_urls"]:
+                                image_url = result["result_urls"][0]
                             elif "result" in result and isinstance(result["result"], list):
                                 for item in result["result"]:
-                                    if isinstance(item, dict) and "urls" in item:
-                                        st.session_state.edited_image = item["urls"][0]
-                                        st.success("✨ Image generated successfully!")
+                                    if isinstance(item, dict) and "urls" in item and item["urls"]:
+                                        image_url = item["urls"][0]
                                         break
-                                    elif isinstance(item, list) and len(item) > 0:
-                                        st.session_state.edited_image = item[0]
-                                        st.success("✨ Image generated successfully!")
-                                        break
+                        
+                        if image_url:
+                            st.session_state.edited_image = image_url
+                            st.success("✨ Image generated successfully!")
+                            st.experimental_rerun()  # Rerun to display the image
                         else:
                             st.error("No valid result format found in the API response.")
                             
                 except Exception as e:
                     st.error(f"Error generating images: {str(e)}")
                     st.write("Full error:", str(e))
+    
+    # --- New section to display the generated image ---
+    st.markdown("---")
+    st.subheader("Generated Image")
+    if st.session_state.edited_image:
+        image_url = st.session_state.edited_image
+        st.image(image_url, caption="Generated Image", use_column_width=True)
+        
+        image_data = download_image(image_url)
+        if image_data:
+            st.download_button(
+                "⬇️ Download Image",
+                image_data,
+                "generated_image.png",
+                "image/png"
+            )
+    else:
+        st.info("Your generated image will appear here.")
+              
     
     # Product Photography Tab
     with tabs[1]:
